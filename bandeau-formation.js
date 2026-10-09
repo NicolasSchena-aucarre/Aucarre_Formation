@@ -54,7 +54,7 @@
 
   if (window.BandeauFormation) return; // fichier chargé deux fois : une seule instance
 
-  var VERSION = "2026-10-09-formation-4";
+  var VERSION = "2026-10-09-formation-5";
   console.info("[bandeau-formation] version " + VERSION);
 
   // ---- Configuration (seul endroit à éditer) --------------------------------
@@ -102,7 +102,7 @@
     ".bf-info-progression{font-weight:500;color:var(--ac-grey-dark,#59736e)}",
     // marque
     ".bf-marque{display:flex;align-items:center;gap:12px;flex:none}",
-    ".bf-logo{height:40px;width:auto;display:block;flex:none}",
+    ".bf-logo{height:48px;width:auto;display:block;flex:none}",
     ".bf-logo-texte{font-weight:800;font-size:18px}",
     ".bf-sep{width:1px;height:20px;background:rgba(9,12,11,.18)}",
     ".bf-titre{font-weight:500}",
@@ -145,7 +145,7 @@
     ".bf-nav-bouton:focus-visible{outline:3px solid var(--ac-black,#090c0b);outline-offset:-3px}",
     ".bf-sr{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}",
     // écran étroit : onglets toujours sur leur propre ligne, marges de 16 px
-    "@media (max-width:720px){.bf-header{padding:0 16px}.bf-inner,.bf-inner.bf-deux-lignes{grid-template-areas:\"gauche . droite\" \"info info info\" \"nav nav nav\"}.bf-inner .bf-nav{margin-left:-12px;min-height:40px;border-top:1px solid rgba(9,12,11,.12)}.bf-sep,.bf-titre,.bf-prenom,.bf-info-sep{display:none}.bf-logo{height:30px}.bf-logo-texte{font-size:15px}.bf-gauche{gap:4px 12px}}"
+    "@media (max-width:720px){.bf-header{padding:0 16px}.bf-inner,.bf-inner.bf-deux-lignes{grid-template-areas:\"gauche . droite\" \"info info info\" \"nav nav nav\"}.bf-inner .bf-nav{margin-left:-12px;min-height:40px;border-top:1px solid rgba(9,12,11,.12)}.bf-sep,.bf-titre,.bf-prenom,.bf-info-sep{display:none}.bf-logo{height:36px}.bf-logo-texte{font-size:15px}.bf-gauche{gap:4px 12px}}"
   ].join("");
 
   // Mise en page de la PAGE (hors Shadow DOM) : bandeau + contenu en colonne, le contenu prenant
