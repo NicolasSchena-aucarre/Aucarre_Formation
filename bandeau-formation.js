@@ -12,12 +12,13 @@
    chaque relecture des données) : elle met à jour ce qui a changé et ne touche
    pas au reste (un menu ou une liste qui a le focus le garde).
 
-   DISPOSITION (une seule ligne ; une seconde ligne seulement s'il y a plus de 4 vues)
-     logo | titre | promo ▾   onglets   ...   cloche  prénom + avatar
+   DISPOSITION (une ligne principale ; les onglets passent sur leur propre ligne s'il y a plus de 4 vues)
+     ligne 1 : logo | titre | promo   onglets   ...   signal  prénom + avatar
+     ligne 2 : devise | « Ta promo en est au module N sur M »   (apprenants, toujours visible)
    Chaque zone n'apparaît que si le widget l'a alimentée.
-   La promo est un bouton léger : au clic, une petite fenêtre montre la devise et
-   « ta promo en est au module N sur M » (apprenants) ou la liste des promos (équipe).
-   La cloche (avec un point) signale qu'il y a quelque chose à faire ; elle ouvre la vue indiquée.
+   Pour l'équipe (fonction promos), le nom de la promo est un bouton léger qui ouvre la liste des promos.
+   Le signal indique qu'il y a quelque chose à faire, à deux endroits : une icône de feuille d'émargement
+   avec un point, à gauche du prénom (elle ouvre la vue indiquée), et un point sur l'onglet de cette vue.
 
    FONCTIONS (window.BandeauFormation) :
 
@@ -28,7 +29,7 @@
      progression({ module: 2, total: 6 })                  // « Ta promo en est au module 2 sur 6 » ; null = masquée
 
      notification({ texte: "Un créneau d'émargement est ouvert.", vue: "emargement" })
-                                                           // cloche ; avec « vue », un clic ouvre cette vue ; null = masquée
+                                                           // signal ; « vue » = id de l'onglet à marquer, et que le clic ouvre ; null = masqué
 
      navigation({ entrees: [ { id: "parcours", nom: "Mon parcours" }, ... ],
                   actif: "parcours",
@@ -37,7 +38,8 @@
      promos({ liste: [ { id: 3, nom: "Renaissance", icone: "🚀", devise: "…", active: true }, ... ],
               choisie: 3,
               consultation: false,                         // true : promo terminée, affiche « Consultation seule »
-              surChoix: function (id) { ... } })           // la fenêtre de la promo devient une liste de choix (équipe)
+              surChoix: function (id) { ... } })           // le nom de la promo devient une liste de choix (équipe) ;
+                                                           // la ligne « devise | progression » n'est alors pas affichée
 
    LA CHARTE : les couleurs suivent les variables --ac-* de aucarre-ui.css quand la page
    les définit ; sinon les valeurs de repli ci-dessous s'appliquent.
@@ -52,7 +54,7 @@
 
   if (window.BandeauFormation) return; // fichier chargé deux fois : une seule instance
 
-  var VERSION = "2026-10-09-formation-2";
+  var VERSION = "2026-10-09-formation-4";
   console.info("[bandeau-formation] version " + VERSION);
 
   // ---- Configuration (seul endroit à éditer) --------------------------------
@@ -77,7 +79,7 @@
   var derniereAnnonce = "";
   var NB_VUES_UNE_LIGNE = 4; // au-delà, les onglets passent sur une seconde ligne
 
-  var SVG_CLOCHE = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>';
+  var SVG_EMARGEMENT = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><path d="M9 14l2 2 4-4"/></svg>';
 
   // Style du bandeau, isolé dans le Shadow DOM. var(--ac-x, repli) : la charte de la page l'emporte quand elle existe.
   var CSS = [
@@ -88,11 +90,16 @@
     "ul{list-style:none;margin:0;padding:0}",
     ".bf-header{background:var(--ac-white,#ffffff);color:var(--ac-black,#090c0b);padding:0 24px;border-bottom:1.5px solid var(--ac-black,#090c0b)}",
     // Grille : une ligne (gauche | onglets | droite) ou deux (onglets en dessous).
-    ".bf-inner{max-width:1240px;margin:0 auto;min-height:60px;display:grid;align-items:center;column-gap:16px;grid-template-columns:minmax(0,auto) 1fr auto;grid-template-areas:\"gauche nav droite\"}",
-    ".bf-inner.bf-deux-lignes{grid-template-areas:\"gauche . droite\" \"nav nav nav\"}",
+    ".bf-inner{max-width:1240px;margin:0 auto;min-height:60px;display:grid;align-items:center;column-gap:16px;grid-template-columns:minmax(0,auto) 1fr auto;grid-template-areas:\"gauche nav droite\" \"info info info\"}",
+    ".bf-inner.bf-deux-lignes{grid-template-areas:\"gauche . droite\" \"info info info\" \"nav nav nav\"}",
     ".bf-gauche{grid-area:gauche;display:flex;align-items:center;gap:8px 16px;min-width:0}",
     ".bf-droite{grid-area:droite;display:flex;align-items:center;gap:4px}",
     ".bf-nav{grid-area:nav}",
+    // ligne « devise | progression », sous la marque et la promo, à gauche
+    ".bf-info{grid-area:info;display:flex;flex-wrap:wrap;align-items:center;gap:0 12px;padding:0 0 8px;font-size:13px;line-height:1.4}",
+    ".bf-info-devise{font-weight:600}",
+    ".bf-info-sep{width:1px;height:13px;background:rgba(9,12,11,.3)}",
+    ".bf-info-progression{font-weight:500;color:var(--ac-grey-dark,#59736e)}",
     // marque
     ".bf-marque{display:flex;align-items:center;gap:12px;flex:none}",
     ".bf-logo{height:40px;width:auto;display:block;flex:none}",
@@ -109,8 +116,6 @@
     ".bf-chevron{flex:none;font-size:11px;line-height:1}",
     ".bf-chip{display:inline-block;padding:1px 10px;font-size:12px;font-weight:700;border:1.5px solid var(--ac-black,#090c0b);border-radius:8px;background:var(--ac-grey-light,#f2f2f2)}",
     ".bf-panneau{position:absolute;top:calc(100% + 4px);left:-8px;z-index:50;min-width:min(280px,92vw);max-width:min(92vw,340px);padding:12px 16px;background:var(--ac-white,#ffffff);border:1.5px solid var(--ac-black,#090c0b);border-radius:12px;box-shadow:0 8px 24px rgba(9,12,11,.14)}",
-    ".bf-panneau p+p{margin-top:8px}",
-    ".bf-panneau-devise{font-size:16px;font-weight:700}",
     ".bf-panneau-titre{font-size:12px;font-weight:700;color:var(--ac-grey-dark,#59736e);margin-bottom:4px}",
     ".bf-liste button{display:flex;align-items:center;gap:8px;width:100%;min-height:44px;padding:4px 8px;font:inherit;text-align:left;color:inherit;background:none;border:none;border-radius:8px;cursor:pointer}",
     ".bf-liste button:hover{background:var(--ac-grey-light,#f2f2f2)}",
@@ -120,10 +125,11 @@
     ".bf-nav-bouton{flex:none;min-height:44px;padding:0 12px;font:inherit;font-weight:500;color:inherit;background:none;border:none;border-bottom:3px solid transparent;border-radius:0;cursor:pointer}",
     ".bf-nav-bouton:hover{background:var(--ac-grey-light,#f2f2f2)}",
     ".bf-nav-bouton[aria-current=\"page\"]{font-weight:700;border-bottom-color:var(--ac-black,#090c0b)}",
+    ".bf-nav-point{display:inline-block;width:10px;height:10px;margin-left:8px;vertical-align:middle;border-radius:50%;background:var(--ac-orange,#ff6b3d);border:2px solid var(--ac-black,#090c0b)}",
     ".bf-inner:not(.bf-deux-lignes) .bf-nav{margin-left:8px}",
     ".bf-deux-lignes .bf-nav{margin-left:-12px;min-height:40px;border-top:1px solid rgba(9,12,11,.12)}",
     ".bf-deux-lignes .bf-nav-bouton{min-height:40px}",
-    // cloche
+    // signal d'émargement (icône à droite)
     ".bf-notif{position:relative;display:inline-grid;place-items:center;width:44px;height:44px;padding:0;color:inherit;background:none;border:none;border-radius:50%;cursor:pointer}",
     "span.bf-notif{cursor:default}",
     "button.bf-notif:hover{background:var(--ac-grey-light,#f2f2f2)}",
@@ -139,7 +145,7 @@
     ".bf-nav-bouton:focus-visible{outline:3px solid var(--ac-black,#090c0b);outline-offset:-3px}",
     ".bf-sr{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}",
     // écran étroit : onglets toujours sur leur propre ligne, marges de 16 px
-    "@media (max-width:720px){.bf-header{padding:0 16px}.bf-inner,.bf-inner.bf-deux-lignes{grid-template-areas:\"gauche . droite\" \"nav nav nav\"}.bf-inner .bf-nav{margin-left:-12px;min-height:40px;border-top:1px solid rgba(9,12,11,.12)}.bf-sep,.bf-titre,.bf-prenom{display:none}.bf-logo{height:30px}.bf-logo-texte{font-size:15px}.bf-gauche{gap:4px 12px}}"
+    "@media (max-width:720px){.bf-header{padding:0 16px}.bf-inner,.bf-inner.bf-deux-lignes{grid-template-areas:\"gauche . droite\" \"info info info\" \"nav nav nav\"}.bf-inner .bf-nav{margin-left:-12px;min-height:40px;border-top:1px solid rgba(9,12,11,.12)}.bf-sep,.bf-titre,.bf-prenom,.bf-info-sep{display:none}.bf-logo{height:30px}.bf-logo-texte{font-size:15px}.bf-gauche{gap:4px 12px}}"
   ].join("");
 
   // Mise en page de la PAGE (hors Shadow DOM) : bandeau + contenu en colonne, le contenu prenant
@@ -233,18 +239,28 @@
     gauche.appendChild(marque);
     gauche.appendChild(promo);
 
+    // Ligne d'information : devise | progression de la promo
+    var info = el("div", "bf-info");
+    info.hidden = true;
+    var infoDevise = el("span", "bf-info-devise");
+    var infoSep = el("span", "bf-info-sep", { "aria-hidden": "true" });
+    var infoProgression = el("span", "bf-info-progression");
+    info.appendChild(infoDevise);
+    info.appendChild(infoSep);
+    info.appendChild(infoProgression);
+
     // Onglets
     var nav = el("nav", "bf-nav", { "aria-label": "Navigation" });
     nav.hidden = true;
 
-    // Droite : cloche, prénom et avatar
+    // Droite : signal, prénom et avatar
     var droite = el("div", "bf-droite");
     var notif = el("button", "bf-notif", { type: "button" });
     notif.hidden = true;
     var notifBulle = el("span", "bf-bulle", { "aria-hidden": "true" });
     var notifPoint = el("span", "bf-notif-point", { "aria-hidden": "true" });
     var notifIcone = el("span", null, { "aria-hidden": "true" });
-    notifIcone.innerHTML = SVG_CLOCHE; // texte constant défini dans ce fichier, jamais une donnée transmise
+    notifIcone.innerHTML = SVG_EMARGEMENT; // texte constant défini dans ce fichier, jamais une donnée transmise
     notif.appendChild(notifIcone);
     notif.appendChild(notifPoint);
     notif.appendChild(notifBulle);
@@ -259,6 +275,7 @@
     droite.appendChild(personne);
 
     inner.appendChild(gauche);
+    inner.appendChild(info);
     inner.appendChild(nav);
     inner.appendChild(droite);
     header.appendChild(inner);
@@ -270,6 +287,7 @@
     ui = {
       host: host, inner: inner, promo: promo, promoBouton: promoBouton, promoSimple: promoSimple, promoIcone: promoIcone,
       promoNom: promoNom, chevron: chevron, chip: chip, panneau: panneau, nav: nav, navSig: null,
+      info: info, infoDevise: infoDevise, infoSep: infoSep, infoProgression: infoProgression,
       notif: notif, notifBulle: notifBulle, personne: personne, prenom: prenom, avatar: avatar, annonce: annonce
     };
 
@@ -314,21 +332,34 @@
     return etat.promo;
   }
 
-  // Une petite fenêtre existe s'il y a une liste de promos, ou une devise / une progression à montrer.
+  // La petite fenêtre n'existe que pour l'équipe : la liste des promos.
   function contenuPanneauDisponible() {
-    var info = promoAffichee();
-    return !!(info && (etat.promos || info.devise || etat.progression));
+    return !!(promoAffichee() && etat.promos);
+  }
+
+  // Ligne « devise | progression » : apprenants seulement (pas de liste de promos), toujours visible.
+  function rendreInfo() {
+    if (!ui) return;
+    var devise = !etat.promos && etat.promo ? etat.promo.devise : "";
+    var progression = !etat.promos && etat.progression
+      ? "Ta promo en est au module " + etat.progression.module + " sur " + etat.progression.total + "."
+      : "";
+    ui.info.hidden = !devise && !progression;
+    ui.infoDevise.textContent = devise;
+    ui.infoDevise.hidden = !devise;
+    ui.infoProgression.textContent = progression;
+    ui.infoProgression.hidden = !progression;
+    ui.infoSep.hidden = !(devise && progression);
   }
 
   function rendrePromo() {
     if (!ui) return;
     var info = promoAffichee();
+    rendreInfo();
     ui.promo.hidden = !info;
     if (!info) { basculerPanneau(false); return; }
 
     var interactif = contenuPanneauDisponible();
-    var cible = interactif ? ui.promoBouton : ui.promoSimple;
-    // Le même contenu (icône + nom) est placé dans l'élément visible.
     ui.promoIcone.textContent = info.icone;
     ui.promoIcone.hidden = !info.icone;
     ui.promoNom.textContent = info.nom;
@@ -342,42 +373,35 @@
     ui.chip.hidden = !(etat.promos && etat.promos.consultation);
     if (!interactif) basculerPanneau(false);
     else if (!ui.panneau.hidden) rendrePanneau();
-    void cible;
   }
 
-  // Contenu de la petite fenêtre : liste de choix (équipe) ou devise + progression (apprenants).
+  // Contenu de la petite fenêtre : la liste des promos (équipe).
   function rendrePanneau() {
     ui.panneau.textContent = "";
     var info = promoAffichee();
-    if (!info) return;
-    if (etat.promos) {
-      ui.panneau.setAttribute("aria-label", "Changer de promo");
-      var titreListe = el("p", "bf-panneau-titre");
-      titreListe.textContent = "Promo affichée";
-      var ul = el("ul", "bf-liste");
-      etat.promos.liste.forEach(function (p) {
-        var li = el("li");
-        var b = el("button", null, { type: "button" });
-        var choisie = String(p.id) === String(info.id);
-        if (choisie) b.setAttribute("aria-current", "true");
-        b.textContent = (choisie ? "✓ " : "") + (p.icone ? p.icone + " " : "") + p.nom + (p.active ? " — active" : "");
-        b.addEventListener("click", function () {
-          etat.promos.choisie = p.id;
-          rendrePromo();
-          basculerPanneau(false);
-          ui.promoBouton.focus();
-          if (rappels.promo) rappels.promo(p.id);
-        });
-        li.appendChild(b);
-        ul.appendChild(li);
+    if (!info || !etat.promos) return;
+    ui.panneau.setAttribute("aria-label", "Changer de promo");
+    var titreListe = el("p", "bf-panneau-titre");
+    titreListe.textContent = "Promo affichée";
+    var ul = el("ul", "bf-liste");
+    etat.promos.liste.forEach(function (p) {
+      var li = el("li");
+      var b = el("button", null, { type: "button" });
+      var choisie = String(p.id) === String(info.id);
+      if (choisie) b.setAttribute("aria-current", "true");
+      b.textContent = (choisie ? "✓ " : "") + (p.icone ? p.icone + " " : "") + p.nom + (p.active ? " — active" : "");
+      b.addEventListener("click", function () {
+        etat.promos.choisie = p.id;
+        rendrePromo();
+        basculerPanneau(false);
+        ui.promoBouton.focus();
+        if (rappels.promo) rappels.promo(p.id);
       });
-      ui.panneau.appendChild(titreListe);
-      ui.panneau.appendChild(ul);
-      return;
-    }
-    ui.panneau.setAttribute("aria-label", "À propos de la promo");
-    if (info.devise) { var d = el("p", "bf-panneau-devise"); d.textContent = info.devise; ui.panneau.appendChild(d); }
-    if (etat.progression) { var g = el("p"); g.textContent = "Ta promo en est au module " + etat.progression.module + " sur " + etat.progression.total + "."; ui.panneau.appendChild(g); }
+      li.appendChild(b);
+      ul.appendChild(li);
+    });
+    ui.panneau.appendChild(titreListe);
+    ui.panneau.appendChild(ul);
   }
 
   function basculerPanneau(ouvrir) {
@@ -415,16 +439,26 @@
       ui.nav.textContent = "";
       entrees.forEach(function (e) {
         var b = el("button", "bf-nav-bouton", { type: "button", "data-id": String(e.id) });
-        b.textContent = e.nom;
+        b.appendChild(document.createTextNode(e.nom));
+        var point = el("span", "bf-nav-point", { "aria-hidden": "true" });
+        var aFaire = el("span", "bf-sr");
+        aFaire.textContent = " (à faire)";
+        point.hidden = aFaire.hidden = true;
+        b.appendChild(point);
+        b.appendChild(aFaire);
         b.addEventListener("click", function () { choisirVue(e.id); });
         ui.nav.appendChild(b);
       });
       ui.navSig = sig;
     }
-    // Seul l'état « vue en cours » est mis à jour : les boutons gardent leur focus.
+    // Seuls l'état « vue en cours » et le point « à faire » sont mis à jour : les boutons gardent leur focus.
+    var vueSignalee = etat.notification && etat.notification.vue !== undefined ? String(etat.notification.vue) : null;
     Array.prototype.forEach.call(ui.nav.children, function (b) {
       if (n && b.getAttribute("data-id") === String(n.actif)) b.setAttribute("aria-current", "page");
       else b.removeAttribute("aria-current");
+      var signale = vueSignalee !== null && b.getAttribute("data-id") === vueSignalee;
+      b.querySelector(".bf-nav-point").hidden = !signale;
+      b.querySelector(".bf-sr").hidden = !signale;
     });
   }
 
@@ -459,6 +493,7 @@
         ? { texte: texte(n.texte, 160), vue: n.vue }
         : null;
       rendreNotification();
+      rendreNavigation(); // le point de l'onglet suit la notification
     },
 
     navigation: function (n) {
@@ -471,7 +506,7 @@
           }
         : null;
       rendreNavigation();
-      rendreNotification(); // l'étiquette de la cloche dépend de la navigation
+      rendreNotification(); // l'étiquette du signal dépend de la navigation
     },
 
     promos: function (p) {
