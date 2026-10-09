@@ -12,11 +12,12 @@
    chaque relecture des données) : elle met à jour ce qui a changé et ne touche
    pas au reste (un menu ou une liste qui a le focus le garde).
 
-   DISPOSITION
-     ligne 1 : logo | titre | promo (icône, nom, devise)  ...  prénom + avatar
-     ligne 2 : message (par exemple « un créneau d'émargement est ouvert »)
-     ligne 3 : navigation entre les vues du widget
+   DISPOSITION (une seule ligne ; une seconde ligne seulement s'il y a plus de 4 vues)
+     logo | titre | promo ▾   onglets   ...   cloche  prénom + avatar
    Chaque zone n'apparaît que si le widget l'a alimentée.
+   La promo est un bouton léger : au clic, une petite fenêtre montre la devise et
+   « ta promo en est au module N sur M » (apprenants) ou la liste des promos (équipe).
+   La cloche (avec un point) signale qu'il y a quelque chose à faire ; elle ouvre la vue indiquée.
 
    FONCTIONS (window.BandeauFormation) :
 
@@ -26,8 +27,8 @@
 
      progression({ module: 2, total: 6 })                  // « Ta promo en est au module 2 sur 6 » ; null = masquée
 
-     notification({ texte: "Un créneau d'émargement est ouvert.", libelle: "Émarger", vue: "emargement" })
-                                                           // libelle + vue : bouton qui ouvre cette vue ; null = masquée
+     notification({ texte: "Un créneau d'émargement est ouvert.", vue: "emargement" })
+                                                           // cloche ; avec « vue », un clic ouvre cette vue ; null = masquée
 
      navigation({ entrees: [ { id: "parcours", nom: "Mon parcours" }, ... ],
                   actif: "parcours",
@@ -36,7 +37,7 @@
      promos({ liste: [ { id: 3, nom: "Renaissance", icone: "🚀", devise: "…", active: true }, ... ],
               choisie: 3,
               consultation: false,                         // true : promo terminée, affiche « Consultation seule »
-              surChoix: function (id) { ... } })           // remplace le nom de la promo par une liste de choix (équipe)
+              surChoix: function (id) { ... } })           // la fenêtre de la promo devient une liste de choix (équipe)
 
    LA CHARTE : les couleurs suivent les variables --ac-* de aucarre-ui.css quand la page
    les définit ; sinon les valeurs de repli ci-dessous s'appliquent.
@@ -51,7 +52,7 @@
 
   if (window.BandeauFormation) return; // fichier chargé deux fois : une seule instance
 
-  var VERSION = "2026-10-09-formation-1";
+  var VERSION = "2026-10-09-formation-2";
   console.info("[bandeau-formation] version " + VERSION);
 
   // ---- Configuration (seul endroit à éditer) --------------------------------
@@ -74,48 +75,71 @@
   var etat = { personne: null, promo: null, progression: null, notification: null, navigation: null, promos: null };
   var rappels = { vue: null, promo: null };
   var derniereAnnonce = "";
+  var NB_VUES_UNE_LIGNE = 4; // au-delà, les onglets passent sur une seconde ligne
+
+  var SVG_CLOCHE = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>';
 
   // Style du bandeau, isolé dans le Shadow DOM. var(--ac-x, repli) : la charte de la page l'emporte quand elle existe.
   var CSS = [
-    ":host{display:block;position:sticky;top:0;z-index:20;flex:none;font-family:Montserrat,Arial,sans-serif;font-size:16px;line-height:1.4;-webkit-font-smoothing:antialiased}",
+    ":host{display:block;position:sticky;top:0;z-index:20;flex:none;font-family:Montserrat,Arial,sans-serif;font-size:14px;line-height:1.4;-webkit-font-smoothing:antialiased}",
     "*{box-sizing:border-box}",
     "[hidden]{display:none!important}",
     "p{margin:0}",
-    ".bf-header{background:var(--ac-white,#ffffff);color:var(--ac-black,#090c0b);padding:0 24px;border-bottom:2px solid var(--ac-black,#090c0b)}",
-    ".bf-inner{max-width:1240px;margin:0 auto}",
-    ".bf-haut{display:flex;align-items:center;justify-content:space-between;gap:16px 24px;flex-wrap:wrap;padding:8px 0;min-height:72px}",
-    ".bf-gauche{display:flex;align-items:center;gap:16px 24px;flex-wrap:wrap;min-width:0}",
-    ".bf-marque{display:flex;align-items:center;gap:12px;min-width:0}",
-    ".bf-logo{height:48px;width:auto;display:block}",
-    ".bf-logo-texte{font-weight:800;font-size:20px}",
+    "ul{list-style:none;margin:0;padding:0}",
+    ".bf-header{background:var(--ac-white,#ffffff);color:var(--ac-black,#090c0b);padding:0 24px;border-bottom:1.5px solid var(--ac-black,#090c0b)}",
+    // Grille : une ligne (gauche | onglets | droite) ou deux (onglets en dessous).
+    ".bf-inner{max-width:1240px;margin:0 auto;min-height:60px;display:grid;align-items:center;column-gap:16px;grid-template-columns:minmax(0,auto) 1fr auto;grid-template-areas:\"gauche nav droite\"}",
+    ".bf-inner.bf-deux-lignes{grid-template-areas:\"gauche . droite\" \"nav nav nav\"}",
+    ".bf-gauche{grid-area:gauche;display:flex;align-items:center;gap:8px 16px;min-width:0}",
+    ".bf-droite{grid-area:droite;display:flex;align-items:center;gap:4px}",
+    ".bf-nav{grid-area:nav}",
+    // marque
+    ".bf-marque{display:flex;align-items:center;gap:12px;flex:none}",
+    ".bf-logo{height:40px;width:auto;display:block;flex:none}",
+    ".bf-logo-texte{font-weight:800;font-size:18px}",
     ".bf-sep{width:1px;height:20px;background:rgba(9,12,11,.18)}",
     ".bf-titre{font-weight:500}",
-    // promo
-    ".bf-promo{display:flex;align-items:center;gap:12px;min-width:0}",
-    ".bf-promo-icone{font-size:32px;line-height:1}",
-    ".bf-promo-nom{font-size:20px;font-weight:800;line-height:1.2}",
-    ".bf-promo-devise{font-size:14px;font-weight:500;color:var(--ac-grey-dark,#59736e)}",
-    ".bf-promo-progression{font-size:14px;font-weight:500}",
-    ".bf-choix{display:flex;align-items:center;gap:8px;flex-wrap:wrap}",
-    ".bf-choix label{font-size:14px;font-weight:700}",
-    ".bf-choix select{min-height:44px;max-width:100%;padding:8px 16px;font:inherit;font-weight:700;color:var(--ac-black,#090c0b);background:var(--ac-white,#ffffff);border:2px solid var(--ac-black,#090c0b);border-radius:var(--ac-radius-sm,8px)}",
-    ".bf-chip{display:inline-block;padding:2px 12px;font-size:14px;font-weight:700;border:2px solid var(--ac-black,#090c0b);border-radius:var(--ac-radius-sm,8px);background:var(--ac-grey-light,#f2f2f2)}",
-    // personne
-    ".bf-personne{display:flex;align-items:center;gap:8px}",
-    ".bf-prenom{font-weight:500}",
-    ".bf-avatar{width:40px;height:40px;border-radius:50%;background:var(--ac-turquoise,#45f8cf);color:var(--ac-black,#090c0b);display:grid;place-items:center;font-size:14px;font-weight:800}",
-    // message
-    ".bf-message{display:flex;align-items:center;justify-content:space-between;gap:8px 16px;flex-wrap:wrap;margin:0 0 8px;padding:8px 16px;background:var(--ac-grey-light,#f2f2f2);border:2px solid var(--ac-black,#090c0b);border-radius:var(--ac-radius-sm,8px)}",
-    // navigation
-    ".bf-nav{display:flex;gap:8px;padding:0 0 8px;overflow-x:auto}",
-    ".bf-nav-bouton{flex:none;min-height:44px;padding:8px 16px;font:inherit;font-weight:500;color:var(--ac-black,#090c0b);background:none;border:2px solid transparent;border-radius:var(--ac-radius-sm,8px);cursor:pointer}",
+    // promo : un bouton léger, qui ouvre une petite fenêtre
+    ".bf-promo{position:relative;display:flex;align-items:center;gap:8px;min-width:0}",
+    ".bf-promo-bouton,.bf-promo-simple{display:inline-flex;align-items:center;gap:8px;min-width:0;min-height:44px;padding:0 8px;margin:0 -8px;font:inherit;color:inherit;background:none;border:none;border-radius:8px}",
+    ".bf-promo-bouton{cursor:pointer}",
+    ".bf-promo-bouton:hover{background:var(--ac-grey-light,#f2f2f2)}",
+    ".bf-promo-icone{flex:none;font-size:20px;line-height:1}",
+    ".bf-promo-nom{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:16px;font-weight:800;line-height:1.2}",
+    ".bf-chevron{flex:none;font-size:11px;line-height:1}",
+    ".bf-chip{display:inline-block;padding:1px 10px;font-size:12px;font-weight:700;border:1.5px solid var(--ac-black,#090c0b);border-radius:8px;background:var(--ac-grey-light,#f2f2f2)}",
+    ".bf-panneau{position:absolute;top:calc(100% + 4px);left:-8px;z-index:50;min-width:min(280px,92vw);max-width:min(92vw,340px);padding:12px 16px;background:var(--ac-white,#ffffff);border:1.5px solid var(--ac-black,#090c0b);border-radius:12px;box-shadow:0 8px 24px rgba(9,12,11,.14)}",
+    ".bf-panneau p+p{margin-top:8px}",
+    ".bf-panneau-devise{font-size:16px;font-weight:700}",
+    ".bf-panneau-titre{font-size:12px;font-weight:700;color:var(--ac-grey-dark,#59736e);margin-bottom:4px}",
+    ".bf-liste button{display:flex;align-items:center;gap:8px;width:100%;min-height:44px;padding:4px 8px;font:inherit;text-align:left;color:inherit;background:none;border:none;border-radius:8px;cursor:pointer}",
+    ".bf-liste button:hover{background:var(--ac-grey-light,#f2f2f2)}",
+    ".bf-liste button[aria-current=\"true\"]{font-weight:800}",
+    // onglets : du texte, souligné pour la vue en cours
+    ".bf-nav{display:flex;gap:4px;overflow-x:auto}",
+    ".bf-nav-bouton{flex:none;min-height:44px;padding:0 12px;font:inherit;font-weight:500;color:inherit;background:none;border:none;border-bottom:3px solid transparent;border-radius:0;cursor:pointer}",
     ".bf-nav-bouton:hover{background:var(--ac-grey-light,#f2f2f2)}",
-    ".bf-nav-bouton[aria-current=\"page\"]{font-weight:700;background:var(--ac-turquoise,#45f8cf);border-color:var(--ac-black,#090c0b)}",
-    // boutons et focus
-    ".bf-bouton{min-height:44px;padding:8px 16px;font:inherit;font-weight:700;color:var(--ac-black,#090c0b);background:var(--ac-white,#ffffff);border:2px solid var(--ac-black,#090c0b);border-radius:var(--ac-radius-sm,8px);cursor:pointer}",
-    ".bf-nav-bouton:focus-visible,.bf-bouton:focus-visible,.bf-choix select:focus-visible{outline:3px solid var(--ac-black,#090c0b);outline-offset:2px}",
+    ".bf-nav-bouton[aria-current=\"page\"]{font-weight:700;border-bottom-color:var(--ac-black,#090c0b)}",
+    ".bf-inner:not(.bf-deux-lignes) .bf-nav{margin-left:8px}",
+    ".bf-deux-lignes .bf-nav{margin-left:-12px;min-height:40px;border-top:1px solid rgba(9,12,11,.12)}",
+    ".bf-deux-lignes .bf-nav-bouton{min-height:40px}",
+    // cloche
+    ".bf-notif{position:relative;display:inline-grid;place-items:center;width:44px;height:44px;padding:0;color:inherit;background:none;border:none;border-radius:50%;cursor:pointer}",
+    "span.bf-notif{cursor:default}",
+    "button.bf-notif:hover{background:var(--ac-grey-light,#f2f2f2)}",
+    ".bf-notif-point{position:absolute;top:9px;right:9px;width:12px;height:12px;border-radius:50%;background:var(--ac-orange,#ff6b3d);border:2px solid var(--ac-black,#090c0b)}",
+    ".bf-bulle{display:none;position:absolute;top:calc(100% + 2px);right:0;z-index:60;padding:4px 10px;font-size:13px;font-weight:500;white-space:nowrap;color:var(--ac-white,#ffffff);background:var(--ac-black,#090c0b);border-radius:8px}",
+    ".bf-notif:hover .bf-bulle,.bf-notif:focus-visible .bf-bulle{display:block}",
+    // personne
+    ".bf-personne{display:flex;align-items:center;gap:8px;padding-left:4px}",
+    ".bf-prenom{font-weight:500}",
+    ".bf-avatar{width:36px;height:36px;border-radius:50%;background:var(--ac-turquoise,#45f8cf);color:var(--ac-black,#090c0b);display:grid;place-items:center;font-size:13px;font-weight:800}",
+    // focus et lecteurs d'écran
+    ".bf-promo-bouton:focus-visible,.bf-liste button:focus-visible,.bf-notif:focus-visible{outline:3px solid var(--ac-black,#090c0b);outline-offset:2px}",
+    ".bf-nav-bouton:focus-visible{outline:3px solid var(--ac-black,#090c0b);outline-offset:-3px}",
     ".bf-sr{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}",
-    "@media (max-width:600px){.bf-header{padding:0 16px}.bf-promo-nom{font-size:18px}.bf-sep,.bf-titre{display:none}}"
+    // écran étroit : onglets toujours sur leur propre ligne, marges de 16 px
+    "@media (max-width:720px){.bf-header{padding:0 16px}.bf-inner,.bf-inner.bf-deux-lignes{grid-template-areas:\"gauche . droite\" \"nav nav nav\"}.bf-inner .bf-nav{margin-left:-12px;min-height:40px;border-top:1px solid rgba(9,12,11,.12)}.bf-sep,.bf-titre,.bf-prenom{display:none}.bf-logo{height:30px}.bf-logo-texte{font-size:15px}.bf-gauche{gap:4px 12px}}"
   ].join("");
 
   // Mise en page de la PAGE (hors Shadow DOM) : bandeau + contenu en colonne, le contenu prenant
@@ -166,7 +190,6 @@
 
     var header = el("header", "bf-header");
     var inner = el("div", "bf-inner");
-    var haut = el("div", "bf-haut");
 
     // Gauche : logo, titre, promo
     var gauche = el("div", "bf-gauche");
@@ -185,84 +208,81 @@
     marque.appendChild(sep);
     marque.appendChild(sub);
 
+    // La promo : un bouton quand une petite fenêtre est disponible, sinon un simple texte.
     var promo = el("div", "bf-promo");
     promo.hidden = true;
+    var promoBouton = el("button", "bf-promo-bouton", { type: "button", "aria-expanded": "false", "aria-controls": "bf-panneau" });
+    var promoSimple = el("span", "bf-promo-simple");
     var promoIcone = el("span", "bf-promo-icone", { "aria-hidden": "true" });
-    var promoCorps = el("div");
-    var promoNom = el("p", "bf-promo-nom");
-    var choix = el("div", "bf-choix");
-    choix.hidden = true;
-    var choixLabel = el("label", null, { "for": "bf-promo-choix" });
-    choixLabel.textContent = "Promo";
-    var select = el("select", null, { id: "bf-promo-choix" });
+    var promoNom = el("span", "bf-promo-nom");
+    var chevron = el("span", "bf-chevron", { "aria-hidden": "true" });
+    chevron.textContent = "▾";
+    promoBouton.appendChild(promoIcone);
+    promoBouton.appendChild(promoNom);
+    promoBouton.appendChild(chevron);
     var chip = el("span", "bf-chip");
     chip.textContent = "Consultation seule";
     chip.hidden = true;
-    choix.appendChild(choixLabel);
-    choix.appendChild(select);
-    choix.appendChild(chip);
-    var promoDevise = el("p", "bf-promo-devise");
-    var promoProgression = el("p", "bf-promo-progression");
-    promoDevise.hidden = promoProgression.hidden = true;
-    promoCorps.appendChild(promoNom);
-    promoCorps.appendChild(choix);
-    promoCorps.appendChild(promoDevise);
-    promoCorps.appendChild(promoProgression);
-    promo.appendChild(promoIcone);
-    promo.appendChild(promoCorps);
+    var panneau = el("div", "bf-panneau", { id: "bf-panneau", role: "group" });
+    panneau.hidden = true;
+    promo.appendChild(promoBouton);
+    promo.appendChild(promoSimple);
+    promo.appendChild(chip);
+    promo.appendChild(panneau);
 
     gauche.appendChild(marque);
     gauche.appendChild(promo);
 
-    // Droite : prénom + avatar
+    // Onglets
+    var nav = el("nav", "bf-nav", { "aria-label": "Navigation" });
+    nav.hidden = true;
+
+    // Droite : cloche, prénom et avatar
+    var droite = el("div", "bf-droite");
+    var notif = el("button", "bf-notif", { type: "button" });
+    notif.hidden = true;
+    var notifBulle = el("span", "bf-bulle", { "aria-hidden": "true" });
+    var notifPoint = el("span", "bf-notif-point", { "aria-hidden": "true" });
+    var notifIcone = el("span", null, { "aria-hidden": "true" });
+    notifIcone.innerHTML = SVG_CLOCHE; // texte constant défini dans ce fichier, jamais une donnée transmise
+    notif.appendChild(notifIcone);
+    notif.appendChild(notifPoint);
+    notif.appendChild(notifBulle);
+
     var personne = el("div", "bf-personne");
     personne.hidden = true;
     var prenom = el("span", "bf-prenom");
     var avatar = el("span", "bf-avatar", { "aria-hidden": "true" });
     personne.appendChild(prenom);
     personne.appendChild(avatar);
+    droite.appendChild(notif);
+    droite.appendChild(personne);
 
-    haut.appendChild(gauche);
-    haut.appendChild(personne);
-
-    // Message, navigation, et zone d'annonce pour les lecteurs d'écran
-    var message = el("div", "bf-message");
-    message.hidden = true;
-    var messageTexte = el("span");
-    var messageBouton = el("button", "bf-bouton", { type: "button" });
-    messageBouton.hidden = true;
-    message.appendChild(messageTexte);
-    message.appendChild(messageBouton);
-
-    var nav = el("nav", "bf-nav", { "aria-label": "Navigation" });
-    nav.hidden = true;
-    var annonce = el("div", "bf-sr", { role: "status" });
-
-    inner.appendChild(haut);
-    inner.appendChild(message);
+    inner.appendChild(gauche);
     inner.appendChild(nav);
+    inner.appendChild(droite);
     header.appendChild(inner);
+    var annonce = el("div", "bf-sr", { role: "status" });
     root.appendChild(style);
     root.appendChild(header);
     root.appendChild(annonce);
 
     ui = {
-      host: host, promo: promo, promoIcone: promoIcone, promoNom: promoNom, choix: choix, select: select, chip: chip,
-      promoDevise: promoDevise, promoProgression: promoProgression, personne: personne, prenom: prenom, avatar: avatar,
-      message: message, messageTexte: messageTexte, messageBouton: messageBouton, nav: nav, navSig: null, selectSig: null, annonce: annonce
+      host: host, inner: inner, promo: promo, promoBouton: promoBouton, promoSimple: promoSimple, promoIcone: promoIcone,
+      promoNom: promoNom, chevron: chevron, chip: chip, panneau: panneau, nav: nav, navSig: null,
+      notif: notif, notifBulle: notifBulle, personne: personne, prenom: prenom, avatar: avatar, annonce: annonce
     };
 
-    messageBouton.addEventListener("click", function () {
+    promoBouton.addEventListener("click", function (e) { e.stopPropagation(); basculerPanneau(panneau.hidden); });
+    notif.addEventListener("click", function () {
       if (etat.notification && etat.notification.vue !== undefined) choisirVue(etat.notification.vue);
     });
-    select.addEventListener("change", function () {
-      var liste = etat.promos ? etat.promos.liste : [];
-      var voulue = liste.filter(function (p) { return String(p.id) === select.value; })[0];
-      if (voulue && etat.promos) {
-        etat.promos.choisie = voulue.id;
-        rendrePromo();
-        if (rappels.promo) rappels.promo(voulue.id);
-      }
+    // Un clic ailleurs dans la page referme la fenêtre de la promo ; Échap aussi.
+    document.addEventListener("click", function (e) {
+      if (e.composedPath().indexOf(promo) === -1) basculerPanneau(false);
+    });
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape" && !panneau.hidden) { basculerPanneau(false); promoBouton.focus(); }
     });
 
     var stylePage = el("style");
@@ -272,7 +292,7 @@
 
     rendrePersonne();
     rendrePromo();
-    rendreMessage();
+    rendreNotification();
     rendreNavigation();
   }
 
@@ -287,57 +307,95 @@
     ui.avatar.textContent = id.initiales;
   }
 
-  function rendrePromo() {
-    if (!ui) return;
-    var info = etat.promo;
-    var choisie = null;
+  // Promo affichée : celle choisie dans la liste (équipe) ou celle transmise (apprenants).
+  function promoAffichee() {
     var liste = etat.promos ? etat.promos.liste : null;
-    if (liste) {
-      choisie = liste.filter(function (p) { return String(p.id) === String(etat.promos.choisie); })[0] || liste[0] || null;
-      info = choisie;
-    }
-    ui.promo.hidden = !info;
-    if (!info) return;
-
-    ui.promoIcone.textContent = info.icone;
-    ui.promoIcone.hidden = !info.icone;
-    ui.promoDevise.textContent = info.devise;
-    ui.promoDevise.hidden = !info.devise;
-
-    // Équipe : liste de choix ; apprenants : nom simple.
-    ui.choix.hidden = !liste;
-    ui.promoNom.hidden = !!liste;
-    ui.promoNom.textContent = info.nom;
-    ui.chip.hidden = !(liste && etat.promos.consultation);
-    if (liste) {
-      var sig = JSON.stringify(liste.map(function (p) { return [p.id, p.nom, p.icone, p.active]; }));
-      if (sig !== ui.selectSig) {
-        ui.select.textContent = "";
-        liste.forEach(function (p) {
-          var o = el("option", null, { value: String(p.id) });
-          o.textContent = (p.icone ? p.icone + " " : "") + p.nom + (p.active ? " — active" : "");
-          ui.select.appendChild(o);
-        });
-        ui.selectSig = sig;
-      }
-      if (choisie) ui.select.value = String(choisie.id);
-    }
-
-    var pr = etat.progression;
-    ui.promoProgression.hidden = !pr;
-    if (pr) ui.promoProgression.textContent = "Ta promo en est au module " + pr.module + " sur " + pr.total + ".";
+    if (liste) return liste.filter(function (p) { return String(p.id) === String(etat.promos.choisie); })[0] || liste[0] || null;
+    return etat.promo;
   }
 
-  function rendreMessage() {
+  // Une petite fenêtre existe s'il y a une liste de promos, ou une devise / une progression à montrer.
+  function contenuPanneauDisponible() {
+    var info = promoAffichee();
+    return !!(info && (etat.promos || info.devise || etat.progression));
+  }
+
+  function rendrePromo() {
+    if (!ui) return;
+    var info = promoAffichee();
+    ui.promo.hidden = !info;
+    if (!info) { basculerPanneau(false); return; }
+
+    var interactif = contenuPanneauDisponible();
+    var cible = interactif ? ui.promoBouton : ui.promoSimple;
+    // Le même contenu (icône + nom) est placé dans l'élément visible.
+    ui.promoIcone.textContent = info.icone;
+    ui.promoIcone.hidden = !info.icone;
+    ui.promoNom.textContent = info.nom;
+    if (!interactif) {
+      ui.promoSimple.textContent = "";
+      if (info.icone) { var i = el("span", "bf-promo-icone", { "aria-hidden": "true" }); i.textContent = info.icone; ui.promoSimple.appendChild(i); }
+      var n = el("span", "bf-promo-nom"); n.textContent = info.nom; ui.promoSimple.appendChild(n);
+    }
+    ui.promoBouton.hidden = !interactif;
+    ui.promoSimple.hidden = interactif;
+    ui.chip.hidden = !(etat.promos && etat.promos.consultation);
+    if (!interactif) basculerPanneau(false);
+    else if (!ui.panneau.hidden) rendrePanneau();
+    void cible;
+  }
+
+  // Contenu de la petite fenêtre : liste de choix (équipe) ou devise + progression (apprenants).
+  function rendrePanneau() {
+    ui.panneau.textContent = "";
+    var info = promoAffichee();
+    if (!info) return;
+    if (etat.promos) {
+      ui.panneau.setAttribute("aria-label", "Changer de promo");
+      var titreListe = el("p", "bf-panneau-titre");
+      titreListe.textContent = "Promo affichée";
+      var ul = el("ul", "bf-liste");
+      etat.promos.liste.forEach(function (p) {
+        var li = el("li");
+        var b = el("button", null, { type: "button" });
+        var choisie = String(p.id) === String(info.id);
+        if (choisie) b.setAttribute("aria-current", "true");
+        b.textContent = (choisie ? "✓ " : "") + (p.icone ? p.icone + " " : "") + p.nom + (p.active ? " — active" : "");
+        b.addEventListener("click", function () {
+          etat.promos.choisie = p.id;
+          rendrePromo();
+          basculerPanneau(false);
+          ui.promoBouton.focus();
+          if (rappels.promo) rappels.promo(p.id);
+        });
+        li.appendChild(b);
+        ul.appendChild(li);
+      });
+      ui.panneau.appendChild(titreListe);
+      ui.panneau.appendChild(ul);
+      return;
+    }
+    ui.panneau.setAttribute("aria-label", "À propos de la promo");
+    if (info.devise) { var d = el("p", "bf-panneau-devise"); d.textContent = info.devise; ui.panneau.appendChild(d); }
+    if (etat.progression) { var g = el("p"); g.textContent = "Ta promo en est au module " + etat.progression.module + " sur " + etat.progression.total + "."; ui.panneau.appendChild(g); }
+  }
+
+  function basculerPanneau(ouvrir) {
+    if (!ui) return;
+    var peut = ouvrir && contenuPanneauDisponible();
+    if (peut) rendrePanneau();
+    ui.panneau.hidden = !peut;
+    ui.promoBouton.setAttribute("aria-expanded", peut ? "true" : "false");
+  }
+
+  function rendreNotification() {
     if (!ui) return;
     var n = etat.notification;
-    ui.message.hidden = !n;
+    ui.notif.hidden = !n;
     var annonceTexte = n ? n.texte : "";
     if (n) {
-      ui.messageTexte.textContent = n.texte;
-      var avecBouton = !!(n.libelle && n.vue !== undefined && etat.navigation && rappels.vue);
-      ui.messageBouton.hidden = !avecBouton;
-      if (avecBouton) ui.messageBouton.textContent = n.libelle;
+      ui.notif.setAttribute("aria-label", n.texte + (n.vue !== undefined && etat.navigation && rappels.vue ? " Ouvrir." : ""));
+      ui.notifBulle.textContent = n.texte;
     }
     // Annonce vocale : seulement quand le texte change, jamais à chaque relecture des données.
     if (annonceTexte !== derniereAnnonce) {
@@ -351,6 +409,7 @@
     var n = etat.navigation;
     var entrees = n ? n.entrees : [];
     ui.nav.hidden = entrees.length < 2; // une seule vue : rien à choisir
+    ui.inner.classList.toggle("bf-deux-lignes", entrees.length > NB_VUES_UNE_LIGNE);
     var sig = JSON.stringify(entrees.map(function (e) { return [e.id, e.nom]; }));
     if (sig !== ui.navSig) {
       ui.nav.textContent = "";
@@ -397,9 +456,9 @@
 
     notification: function (n) {
       etat.notification = n && typeof n === "object" && texte(n.texte)
-        ? { texte: texte(n.texte, 160), libelle: texte(n.libelle, 40), vue: n.vue }
+        ? { texte: texte(n.texte, 160), vue: n.vue }
         : null;
-      rendreMessage();
+      rendreNotification();
     },
 
     navigation: function (n) {
@@ -412,7 +471,7 @@
           }
         : null;
       rendreNavigation();
-      rendreMessage(); // le bouton du message dépend de la navigation
+      rendreNotification(); // l'étiquette de la cloche dépend de la navigation
     },
 
     promos: function (p) {
